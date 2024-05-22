@@ -1,8 +1,8 @@
 Package: PEMtestr
-Title: What the Package Does (One Line, Title Case)
+Title: Development Space for PEM Workflows
 Version: 0.0.0.9000
 Authors@R: c(
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre")),
+    person("Claire", "Armour", , "Claire.Armour@gov.bc.ca", role = c("aut", "cre")),
     person("Province of British Columbia", role = "cph")
   )
 Description: What the package does (one paragraph).
@@ -12,7 +12,11 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.1
 Suggests: 
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 URL: https://github.com/bcgov/PEMtestr
 BugReports: https://github.com/bcgov/PEMtestr/issues
+Config/testthat/edition: 3
+Imports: 
+    stringr
