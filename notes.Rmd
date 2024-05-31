@@ -1,0 +1,40 @@
+---
+title: "Notes"
+output: html_notebook
+---
+
+Load in our required libraries for package development.
+
+```{r}
+library(devtools); library(roxygen2); library(testthat); library(knitr)
+```
+
+Create a function by either opening and saving an .R file in the R/ directory or use the function below.
+
+```{r}
+usethis::use_r("functionName")
+```
+
+Once we have created a function (or many), we need to load them into the "package environment".
+
+```{r}
+devtools::load_all()
+```
+
+Check your functions.
+
+```{r}
+devtools::check()
+```
+
+Create an .Rd file by opening up the source file and clicking Code>Insert Roxygen skeleton. Fill in the parts with the relevant information, then trigger the creation using the document function.
+
+```{r}
+devtools::document()
+```
+
+Declare your general intent to use some functions from a package.
+```{r}
+use_package("pkgName")
+```
+
