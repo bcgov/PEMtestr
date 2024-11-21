@@ -18,27 +18,35 @@ require(ggtext)
 require(gghighlight)
 require(ggspatial)
 require(gt)
+require(tidyterra)
+require(ggpmisc)
+require(viridis)
 
 ```
 
 ```{r graphics-setup, include = FALSE}
 
-pal <- colorRampPalette(ochRe::ochre_palettes[["namatjira_qual"]])
+pal.parl <- colorRampPalette(ochRe::ochre_palettes[["parliament"]])
+pal.nam <- colorRampPalette(ochRe::ochre_palettes[["namatjira_qual"]])
 font_add_google('Anton', 'anton')
 showtext_auto()
 
 ```
-This report provides several metrics of interest over the geographic extent of the AOI, including the distribution of forest age, dominant species, common disturbances, topographic variables, and others. It also summarizes key outputs from the prepR workflow and briefly describes their purpose in the modelling process. More details on the data, methodology, and results from the prepR workflow can be found in the PEM Manual.
+This report provides several metrics of interest over the geographic extent of the [AOI_name] AOI, including the distribution of forest age, dominant species, common disturbances, topographic variables, and others. It also summarizes key outputs from the prepR workflow. More details on the data, methodology, and results from the prepR workflow can be found in the PEM Manual.
 
 ```{r aoi-inset, echo = FALSE}
+
+#| fig-cap: "Figure 1: A map of where the [AOI_name] AOI is located in British Columbia."
+#| fig-width: 6
+#| fig-height: 4
 
 aoi <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
 
 bc_outline <- sf::st_read("C:/Users/ccarmour.stu/Documents/GitHub/PEMtestr/summary_report/bc_outline.gpkg", quiet = TRUE)
 
 ggplot2::ggplot() +
-  ggplot2::geom_sf(data = sf::st_geometry(bc_outline), fill = "floralwhite") +
-  ggplot2::geom_sf(data = sf::st_geometry(aoi), color = "firebrick", fill = "floralwhite") +
+  tidyterra::geom_spatvector(data = terra::vect(bc_outline), fill = "floralwhite") +
+  tidyterra::geom_spatvector(data = terra::vect(aoi), color = "firebrick", fill = "floralwhite", linewidth = 1) +
   ggspatial::annotation_north_arrow(
     location = "tr", # Position: bottom-right
     which_north = "true", # True North
@@ -51,17 +59,31 @@ ggplot2::ggplot() +
 
 ```{r bec-map, echo = FALSE}
 
+#| fig-cap: "Figure 2: A map of BEC subzones, variants, and phases across [AOI_name]."
+#| fig-width: 6
+#| fig-height: 4
+
 bec <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/bec.gpkg", quiet = TRUE) %>%
   dplyr::mutate(BGC_LABEL = str_replace_all(BGC_LABEL, " ", ""))
 
-ggplot(data = bec, mapping = aes(fill = BGC_LABEL))+
-  geom_sf() +
-  scale_fill_manual(values = pal(8)) +
-  labs(fill = "BEC Subzone/Variant")
+ggplot(data = terra::vect(bec), mapping = aes(fill = BGC_LABEL)) +
+  tidyterra::geom_spatvector(linewidth = 0) +
+  labs(fill = "BEC Subzone/Variant") +
+    ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  )
 
 ```
 
 ```{r bec-chart, echo = FALSE}
+
+#| fig-cap: "Table 1: A summary of BEC subzones and variants by land area."
+#| fig-width: 6
+#| fig-height: 4
 
 bec.df <- bec %>%
   dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
@@ -69,50 +91,48 @@ bec.df <- bec %>%
   dplyr::group_by(BGC_LABEL) %>%
   dplyr::summarize(AREA.BY.GRP = round(as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000, 2))
 
-bec.df %>%
+bec.table <- bec.df %>%
   gt::gt() %>%
   tab_header(title = "BEC Subzone/Variant by Land Area") %>%
-    cols_label(
+  cols_label(
     BGC_LABEL = "Subzone/Variant",
     AREA.BY.GRP = "Area (1000s of ha)"
   )
-
 
 ```
 
 
 ```{r forest-age, echo = FALSE}
 
-vri <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri_detail.gpkg", quiet = TRUE) %>%
+#| fig-cap: "Figure 3: Distribution of forest age across [AOI_name], rounded to nearest decade. Polygons with an age of 250 years or greater were clamped to 250 years for visualization purposes."
+#| fig-width: 6
+#| fig-height: 4
+
+vri <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri_detail.gpkg", quiet = TRUE) %>%
+  sf::st_join(bec, join = st_intersects, quiet = TRUE, left = FALSE) %>%
   dplyr::mutate(BEC_LABEL = str_c(BEC_ZONE_CODE, BEC_SUBZONE),
                 BEC_LABEL = case_when(
                   !is.na(BEC_VARIANT) ~ str_c(BEC_LABEL, BEC_VARIANT),
-                  TRUE ~ BEC_LABEL))
-
-### FOREST AGE
-
-## Extract forest age from PROJ_AGE_1 variable
-## Calculate area in hectares, drop geometry
-## Clamp between 0-250 years and bin by decade
-## Group by age class and sum total area in hectares
-age.df <- vri %>%
-  dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
-  sf::st_drop_geometry() %>%
-  dplyr::mutate(PROJ_AGE_1 = case_when(
+                  TRUE ~ BEC_LABEL),
+                PROJ_AGE_1 = case_when(
     PROJ_AGE_1 == 0 ~ NA_integer_,
     PROJ_AGE_1 > 840 ~ NA_integer_,
     PROJ_AGE_1 <= 840 & PROJ_AGE_1 > 250 ~ as.integer(250),
     TRUE ~ PROJ_AGE_1),
-    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10) %>%
+    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10)
+
+age.df <- vri %>%
+  dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
+  sf::st_drop_geometry() %>%
   dplyr::group_by(AGE.ROUNDED) %>%
   dplyr::summarize(AREA.BY.GRP = as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000) %>%
   dplyr::filter(!is.na(AGE.ROUNDED))
 
+
 max.area = max(age.df$AREA.BY.GRP, na.rm = TRUE)
 
-## plotting in R
 ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
-  geom_bar(stat = "identity", fill = pal(8)[6]) +
+  geom_bar(stat = "identity", fill = "goldenrod") +
   labs(
     # title = "Age Distribution of Forest Stands by Area",
     x = "Age (years)",
@@ -126,15 +146,37 @@ ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
     panel.grid.major = element_line(colour = "grey88"),
     # panel.grid.minor = element_line(colour = "grey88"),
     # axis.ticks = element_blank(),
-    # axis.text = element_text(size = 24),
+    axis.text = element_text(size = 14),
     # axis.ticks = element_line(size = 0.5),
-    # axis.title.x = element_text(size = 32, face = "bold"),
-    # axis.title.y = element_text(size = 32, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
-    plot.title = element_text(size = 54, hjust = 0.5),
+    plot.title = element_text(size = 45, hjust = 0.5),
   )
 
 ```
+
+```{r}
+
+#| fig-cap: "Figure 4: A map of forest age across [AOI_name]. Polygons with an age of 250 years or greater were clamped to 250 years for visualization purposes."
+#| fig-width: 6
+#| fig-height: 4
+
+ggplot() +
+  tidyterra::geom_spatvector(data = dplyr::filter(vri, PROJ_AGE_1 > 0), mapping = aes(fill = AGE.ROUNDED), color = "transparent") +
+  viridis::scale_fill_viridis(direction = -1, option = "D") +
+  labs(fill = "Forest Age (years)") +
+    ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  )
+
+
+```
+
 
 ```{r species-dist, echo = FALSE}
 
