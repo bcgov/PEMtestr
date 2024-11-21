@@ -16,8 +16,11 @@ require(ochRe)
 require(showtext)
 require(ggtext)
 require(gghighlight)
+require(ggspatial)
+require(gt)
 
 ```
+
 ```{r graphics-setup, include = FALSE}
 
 pal <- colorRampPalette(ochRe::ochre_palettes[["namatjira_qual"]])
@@ -29,13 +32,20 @@ This report provides several metrics of interest over the geographic extent of t
 
 ```{r aoi-inset, echo = FALSE}
 
-aoi <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
+aoi <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
 
-bc_outline <- st_read("C:/Users/ccarmour.stu/Documents/GitHub/PEMtestr/summary_report/bc_outline.gpkg", quiet = TRUE)
+bc_outline <- sf::st_read("C:/Users/ccarmour.stu/Documents/GitHub/PEMtestr/summary_report/bc_outline.gpkg", quiet = TRUE)
 
-ggplot() +
-  geom_sf(data = st_geometry(bc_outline)) +
-  geom_sf(data = st_geometry(aoi), color = "red")
+ggplot2::ggplot() +
+  ggplot2::geom_sf(data = sf::st_geometry(bc_outline), fill = "floralwhite") +
+  ggplot2::geom_sf(data = sf::st_geometry(aoi), color = "firebrick", fill = "floralwhite") +
+  ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  )
 
 ```
 
@@ -46,8 +56,27 @@ bec <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateC
 
 ggplot(data = bec, mapping = aes(fill = BGC_LABEL))+
   geom_sf() +
-  scale_fill_manual(values = pal(6)) +
+  scale_fill_manual(values = pal(8)) +
   labs(fill = "BEC Subzone/Variant")
+
+```
+
+```{r bec-chart, echo = FALSE}
+
+bec.df <- bec %>%
+  dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
+  sf::st_drop_geometry() %>%
+  dplyr::group_by(BGC_LABEL) %>%
+  dplyr::summarize(AREA.BY.GRP = round(as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000, 2))
+
+bec.df %>%
+  gt::gt() %>%
+  tab_header(title = "BEC Subzone/Variant by Land Area") %>%
+    cols_label(
+    BGC_LABEL = "Subzone/Variant",
+    AREA.BY.GRP = "Area (1000s of ha)"
+  )
+
 
 ```
 
