@@ -18,12 +18,18 @@ require(showtext)
 require(ggtext)
 require(gghighlight)
 require(ochRe)
+require(ggspatial)
+require(gt)
+require(tidyterra)
+require(ggpmisc)
+require(viridis)
 
 ```
 
 ```{r graphics-setup, include = FALSE}
 
-pal <- colorRampPalette(ochRe::ochre_palettes[["namatjira_qual"]])
+pal.parl <- colorRampPalette(ochRe::ochre_palettes[["parliament"]])
+pal.nam <- colorRampPalette(ochRe::ochre_palettes[["namatjira_qual"]])
 font_add_google('Anton', 'anton')
 showtext_auto()
 
@@ -49,33 +55,104 @@ vri <- sf::st_read("C:/Users/clarmour/OneDrive - Government of BC/UBC/phd_data/V
 
 ```
 
-```{r vri-metrics}
+```{r aoi-inset, echo = FALSE}
 
+#| fig-cap: "Figure 1: A map of where the [AOI_name] AOI is located in British Columbia."
+#| fig-width: 6
+#| fig-height: 4
 
+aoi <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
 
-### FOREST AGE
+bc_outline <- sf::st_read("C:/Users/ccarmour.stu/Documents/GitHub/PEMtestr/summary_report/bc_outline.gpkg", quiet = TRUE)
 
-## Extract forest age from PROJ_AGE_1 variable
-## Calculate area in hectares, drop geometry
-## Clamp between 0-250 years and bin by decade
-## Group by age class and sum total area in hectares
-age.df <- vri %>%
+ggplot2::ggplot() +
+  tidyterra::geom_spatvector(data = terra::vect(bc_outline), fill = "floralwhite") +
+  tidyterra::geom_spatvector(data = terra::vect(aoi), color = "firebrick", fill = "floralwhite", linewidth = 1) +
+  ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  )
+
+```
+
+```{r bec-map, echo = FALSE}
+
+#| fig-cap: "Figure 2: A map of BEC subzones, variants, and phases across [AOI_name]."
+#| fig-width: 6
+#| fig-height: 4
+
+bec <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/bec.gpkg", quiet = TRUE) %>%
+  dplyr::mutate(BGC_LABEL = str_replace_all(BGC_LABEL, " ", ""))
+
+ggplot(data = terra::vect(bec), mapping = aes(fill = BGC_LABEL)) +
+  tidyterra::geom_spatvector(linewidth = 0) +
+  labs(fill = "BEC Subzone/Variant") +
+    ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  )
+
+```
+
+```{r bec-chart, echo = FALSE}
+
+#| fig-cap: "Table 1: A summary of BEC subzones and variants by land area."
+#| fig-width: 6
+#| fig-height: 4
+
+bec.df <- bec %>%
   dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
   sf::st_drop_geometry() %>%
-  dplyr::mutate(PROJ_AGE_1 = case_when(
+  dplyr::group_by(BGC_LABEL) %>%
+  dplyr::summarize(AREA.BY.GRP = round(as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000, 2))
+
+bec.table <- bec.df %>%
+  gt::gt() %>%
+  tab_header(title = "BEC Subzone/Variant by Land Area") %>%
+  cols_label(
+    BGC_LABEL = "Subzone/Variant",
+    AREA.BY.GRP = "Area (1000s of ha)"
+  )
+
+```
+
+```{r forest-age, echo = FALSE}
+
+#| fig-cap: "Figure 3: Distribution of forest age across [AOI_name], rounded to nearest decade. Polygons with an age of 250 years or greater were clamped to 250 years for visualization purposes."
+#| fig-width: 6
+#| fig-height: 4
+
+vri <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri_detail.gpkg", quiet = TRUE) %>%
+  sf::st_join(bec, join = st_intersects, quiet = TRUE, left = FALSE) %>%
+  dplyr::mutate(BEC_LABEL = str_c(BEC_ZONE_CODE, BEC_SUBZONE),
+                BEC_LABEL = case_when(
+                  !is.na(BEC_VARIANT) ~ str_c(BEC_LABEL, BEC_VARIANT),
+                  TRUE ~ BEC_LABEL),
+                PROJ_AGE_1 = case_when(
     PROJ_AGE_1 == 0 ~ NA_integer_,
     PROJ_AGE_1 > 840 ~ NA_integer_,
     PROJ_AGE_1 <= 840 & PROJ_AGE_1 > 250 ~ as.integer(250),
     TRUE ~ PROJ_AGE_1),
-    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10) %>%
+    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10)
+
+age.df <- vri %>%
+  dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
+  sf::st_drop_geometry() %>%
   dplyr::group_by(AGE.ROUNDED) %>%
   dplyr::summarize(AREA.BY.GRP = as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000) %>%
   dplyr::filter(!is.na(AGE.ROUNDED))
 
+
 max.area = max(age.df$AREA.BY.GRP, na.rm = TRUE)
 
 ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
-  geom_bar(stat = "identity", fill = pal(8)[6]) +
+  geom_bar(stat = "identity", fill = "goldenrod") +
   labs(
     # title = "Age Distribution of Forest Stands by Area",
     x = "Age (years)",
@@ -89,63 +166,56 @@ ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
     panel.grid.major = element_line(colour = "grey88"),
     # panel.grid.minor = element_line(colour = "grey88"),
     # axis.ticks = element_blank(),
-    # axis.text = element_text(size = 24),
+    axis.text = element_text(size = 14),
     # axis.ticks = element_line(size = 0.5),
-    # axis.title.x = element_text(size = 32, face = "bold"),
-    # axis.title.y = element_text(size = 32, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
-    plot.title = element_text(size = 54, hjust = 0.5),
+    plot.title = element_text(size = 45, hjust = 0.5),
   )
 
 fig.name <- "C:/Users/clarmour/Documents/GitHub/PEMtestr/summary_report/figures/age_by_area.png"
 
-if(file.exists(fig.name)){
-  file.remove(fig.name)
-}
+```
 
-ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
-  geom_bar(stat = "identity", fill = pal(8)[6]) +
-  labs(
-    # title = "Age Distribution of Forest Stands by Area",
-    x = "Age (years)",
-    y = "Total Area (1000s of hectares)",
-  ) +
-  scale_x_continuous(breaks = seq(0, 250, by = 10)) +
-  scale_y_continuous(breaks = seq(0, 150, by = 10)) +
-  theme(
-    # text = element_text(family = "anton"),
-    panel.background = element_rect("transparent"),
-    panel.grid.major = element_line(colour = "grey88"),
-    # panel.grid.minor = element_line(colour = "grey88"),
-    # axis.ticks = element_blank(),
-    axis.text = element_text(size = 24),
-    axis.ticks = element_line(size = 0.5),
-    axis.title.x = element_text(size = 32, face = "bold"),
-    axis.title.y = element_text(size = 32, face = "bold"),
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
-    plot.title = element_text(size = 54, hjust = 0.5),
+```{r}
+
+#| fig-cap: "Figure 4: A map of forest age across [AOI_name]. Polygons with an age of 250 years or greater were clamped to 250 years for visualization purposes."
+#| fig-width: 6
+#| fig-height: 4
+
+ggplot() +
+  tidyterra::geom_spatvector(data = dplyr::filter(vri, PROJ_AGE_1 > 0), mapping = aes(fill = AGE.ROUNDED), color = "transparent") +
+  viridis::scale_fill_viridis(direction = -1, option = "D") +
+  labs(fill = "Forest Age (years)") +
+    ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
   )
 
-  ggsave(plot = .,
-       filename = fig.name,
-       height = 4.5,
-       width = 6.5,
-       unit = "in",
-       dpi = 300)
+
+```
+
+```{r species-dist, echo = FALSE}
 
 ### SPECIES DISTRIBUTION
 
 species.df <- vri %>%
-  dplyr::filter(!is.na(SPECIES__1)) %>%
+  dplyr::filter(!is.na(SPECIES_CD_1)) %>%
   dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
   sf::st_drop_geometry() %>%
-  dplyr::group_by(SPECIES__1) %>%
+  dplyr::group_by(SPECIES_CD_1) %>%
   dplyr::summarize(AREA.BY.GRP = as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000) %>%
-  dplyr::mutate(SPECIES__1 = as.factor(SPECIES__1)) %>%
+  dplyr::mutate(SPECIES_CD_1 = as.factor(SPECIES_CD_1)) %>%
   dplyr::arrange(desc(AREA.BY.GRP)) %>%
   dplyr::filter(AREA.BY.GRP >= 1)
 
-ggplot(species.df, aes(x = reorder(SPECIES__1, -AREA.BY.GRP), y = AREA.BY.GRP)) +
+max.area = max(species.df$AREA.BY.GRP, na.rm = TRUE)
+
+ggplot(species.df, aes(x = reorder(SPECIES_CD_1, -AREA.BY.GRP), y = AREA.BY.GRP)) +
   geom_bar(stat = "identity", fill = pal(8)[4]) +
   labs(
     # title = "Age Distribution of Forest Stands by Area",
@@ -153,7 +223,7 @@ ggplot(species.df, aes(x = reorder(SPECIES__1, -AREA.BY.GRP), y = AREA.BY.GRP)) 
     y = "Total Area (1000s of hectares)",
   ) +
   # scale_x_continuous(breaks = seq(0, 250, by = 10)) +
-  scale_y_continuous(breaks = seq(0, 450, by = 15)) +
+  scale_y_continuous(breaks = seq(0, max.area, by = floor(max.area/10))) +
   theme(
     # text = element_text(family = "anton"),
     panel.background = element_rect("transparent"),
@@ -167,5 +237,4 @@ ggplot(species.df, aes(x = reorder(SPECIES__1, -AREA.BY.GRP), y = AREA.BY.GRP)) 
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
     plot.title = element_text(size = 54, hjust = 0.5),
   )
-
 ```
