@@ -29,7 +29,9 @@ showtext_auto()
 
 ```
 
+
 This report provides several metrics of interest over the geographic extent of the AOI, including the distribution of forest age, dominant species, common disturbances, topographic variables, and others. It also summarizes key outputs from the prepR workflow and briefly describes their purpose in the modelling process. More details on the data, methodology, and results from the prepR workflow can be found in the \[PEM Manual\].
+
 
 ```{r aoi-map}
 # 
@@ -169,3 +171,4 @@ ggplot(species.df, aes(x = reorder(SPECIES__1, -AREA.BY.GRP), y = AREA.BY.GRP)) 
   )
 
 ```
+
