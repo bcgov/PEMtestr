@@ -37,23 +37,6 @@ showtext_auto()
 
 This report provides several metrics of interest over the geographic extent of the AOI, including the distribution of forest age, dominant species, common disturbances, topographic variables, and others. It also summarizes key outputs from the prepR workflow and briefly describes their purpose in the modelling process. More details on the data, methodology, and results from the prepR workflow can be found in the \[PEM Manual\].
 
-```{r aoi-map}
-# 
-# aoi2 <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg")
-# vri2 <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri.gpkg")
-
-aoi <- sf::st_read("C:/Users/clarmour/OneDrive - Government of BC/UBC/phd_data/vectors_AOI/BDY_M_AOI.shp")
-vri <- sf::st_read("C:/Users/clarmour/OneDrive - Government of BC/UBC/phd_data/VRI/VEG_R1_PLY_BDY_R.shp")
-
-# vri_int <- st_join(vri, aoi, join = st_intersects)
-# 
-# bec <- vri_int %>%
-#   dplyr::mutate(BEC_LABEL = str_c(BEC_ZONE_C, BEC_SUBZON),
-#                 BEC_LABEL = case_when(
-#                   !is.na(BEC_VARIAN) ~ str_c(BEC_LABEL, BEC_VARIAN),
-#                   TRUE ~ BEC_LABEL))
-
-```
 
 ```{r aoi-inset, echo = FALSE}
 
