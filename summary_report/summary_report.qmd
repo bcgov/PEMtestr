@@ -46,7 +46,7 @@ This report provides several metrics of interest over the geographic extent of t
 
 aoi <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
 
-bc_outline <- sf::st_read("C:/Users/ccarmour.stu/Documents/GitHub/PEMtestr/summary_report/bc_outline.gpkg", quiet = TRUE)
+bc_outline <- sf::st_read("/summary_report/bc_outline.gpkg", quiet = TRUE)
 
 ggplot2::ggplot() +
   tidyterra::geom_spatvector(data = terra::vect(bc_outline), fill = "floralwhite") +
