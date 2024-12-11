@@ -8,6 +8,9 @@ editor_options:
 ---
 
 ```{r setup, include = FALSE}
+
+# devtools::install_github("ropenscilabs/ochRe")
+
 require(tidyverse)
 require(magrittr)
 require(terra)
@@ -24,6 +27,7 @@ require(tidyterra)
 require(ggpmisc)
 require(viridis)
 
+renv::snapshot()
 ```
 
 ```{r graphics-setup, include = FALSE}
@@ -44,9 +48,9 @@ This report provides several metrics of interest over the geographic extent of t
 #| fig-width: 6
 #| fig-height: 4
 
-aoi <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
+aoi <- sf::st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/aoi.gpkg", quiet = TRUE)
 
-bc_outline <- sf::st_read("/summary_report/bc_outline.gpkg", quiet = TRUE)
+bc_outline <- sf::st_read("summary_report/data/bc_outline.gpkg", quiet = TRUE)
 
 ggplot2::ggplot() +
   tidyterra::geom_spatvector(data = terra::vect(bc_outline), fill = "floralwhite") +
@@ -54,8 +58,8 @@ ggplot2::ggplot() +
   ggspatial::annotation_north_arrow(
     location = "tr", # Position: bottom-right
     which_north = "true", # True North
-    pad_x = unit(0.5, "cm"), # Padding from x-axis
-    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    pad_x = ggplot2::unit(0.5, "cm"), # Padding from x-axis
+    pad_y = ggplot2::unit(0.5, "cm"), # Padding from y-axis
     style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
   )
 
@@ -67,18 +71,21 @@ ggplot2::ggplot() +
 #| fig-width: 6
 #| fig-height: 4
 
-bec <- st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/bec.gpkg", quiet = TRUE) %>%
-  dplyr::mutate(BGC_LABEL = str_replace_all(BGC_LABEL, " ", ""))
+bec <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/bec.gpkg", quiet = TRUE) %>%
+  dplyr::mutate(BGC_LABEL = stringr::str_replace_all(BGC_LABEL, " ", ""))
 
 ggplot(data = terra::vect(bec), mapping = aes(fill = BGC_LABEL)) +
   tidyterra::geom_spatvector(linewidth = 0) +
   labs(fill = "BEC Subzone/Variant") +
-    ggspatial::annotation_north_arrow(
+  ggspatial::annotation_north_arrow(
     location = "tr", # Position: bottom-right
     which_north = "true", # True North
     pad_x = unit(0.5, "cm"), # Padding from x-axis
     pad_y = unit(0.5, "cm"), # Padding from y-axis
     style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  ) +
+  theme(
+    legend.position = "bottom"
   )
 
 ```
@@ -95,10 +102,10 @@ bec.df <- bec %>%
   dplyr::group_by(BGC_LABEL) %>%
   dplyr::summarize(AREA.BY.GRP = round(as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000, 2))
 
-bec.table <- bec.df %>%
+bec.df %>%
   gt::gt() %>%
-  tab_header(title = "BEC Subzone/Variant by Land Area") %>%
-  cols_label(
+  gt::tab_header(title = "BEC Subzone/Variant by Land Area") %>%
+  gt::cols_label(
     BGC_LABEL = "Subzone/Variant",
     AREA.BY.GRP = "Area (1000s of ha)"
   )
@@ -111,7 +118,7 @@ bec.table <- bec.df %>%
 #| fig-width: 6
 #| fig-height: 4
 
-vri <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri_detail.gpkg", quiet = TRUE) %>%
+vri <- sf::st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/vri_detail.gpkg", quiet = TRUE) %>%
   sf::st_join(bec, join = st_intersects, quiet = TRUE, left = FALSE) %>%
   dplyr::mutate(BEC_LABEL = str_c(BEC_ZONE_CODE, BEC_SUBZONE),
                 BEC_LABEL = case_when(
@@ -122,7 +129,8 @@ vri <- sf::st_read("C:/Users/ccarmour.stu/OneDrive - Government of BC/PEM/AOIs/D
     PROJ_AGE_1 > 840 ~ NA_integer_,
     PROJ_AGE_1 <= 840 & PROJ_AGE_1 > 250 ~ as.integer(250),
     TRUE ~ PROJ_AGE_1),
-    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10)
+    AGE.ROUNDED = floor(PROJ_AGE_1 / 10) * 10,
+    HARVEST_DATE = lubridate::ymd(HARVEST_DATE))
 
 age.df <- vri %>%
   dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
@@ -153,15 +161,14 @@ ggplot(age.df, aes(x = AGE.ROUNDED, y = AREA.BY.GRP)) +
     # axis.ticks = element_line(size = 0.5),
     axis.title.x = element_text(size = 14, face = "bold"),
     axis.title.y = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
     plot.title = element_text(size = 45, hjust = 0.5),
   )
 
-fig.name <- "C:/Users/clarmour/Documents/GitHub/PEMtestr/summary_report/figures/age_by_area.png"
-
 ```
 
-```{r}
+```{r forest-age-map, echo = FALSE}
 
 #| fig-cap: "Figure 4: A map of forest age across [AOI_name]. Polygons with an age of 250 years or greater were clamped to 250 years for visualization purposes."
 #| fig-width: 6
@@ -177,29 +184,92 @@ ggplot() +
     pad_x = unit(0.5, "cm"), # Padding from x-axis
     pad_y = unit(0.5, "cm"), # Padding from y-axis
     style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  ) +
+  theme(
+    legend.position = "bottom",
   )
 
 
 ```
 
+```{r dist-type-map, echo = FALSE}
+
+ggplot() +
+  tidyterra::geom_spatvector(data = dplyr::filter(vri, PROJ_AGE_1 > 0), mapping = aes(fill = lubridate::year(HARVEST_DATE)), color = "transparent") +
+  viridis::scale_fill_viridis(direction = -1, option = "B") +
+  labs(fill = "Harvest Year") +
+    ggspatial::annotation_north_arrow(
+    location = "tr", # Position: bottom-right
+    which_north = "true", # True North
+    pad_x = unit(0.5, "cm"), # Padding from x-axis
+    pad_y = unit(0.5, "cm"), # Padding from y-axis
+    style = ggspatial::north_arrow_fancy_orienteering() # Style of the arrow
+  ) +
+  theme(
+    legend.position = "bottom",
+  )
+
+
+```
+
+
 ```{r species-dist, echo = FALSE}
 
-### SPECIES DISTRIBUTION
-
 species.df <- vri %>%
+  dplyr::select(starts_with("SPECIES")) %>%
   dplyr::filter(!is.na(SPECIES_CD_1)) %>%
-  dplyr::mutate(AREA.METRES = sf::st_area(.)) %>%
-  sf::st_drop_geometry() %>%
+  dplyr::mutate(AREA.METRES = sf::st_area(.), # Compute area for polygon
+                AREA.SC.1 = AREA.METRES * as.numeric(SPECIES_PCT_1/100), # Multiply by species percentage for each code
+                AREA.SC.2 = AREA.METRES * as.numeric(SPECIES_PCT_2/100),
+                AREA.SC.3 = AREA.METRES * as.numeric(SPECIES_PCT_3/100),
+                AREA.SC.4 = AREA.METRES * as.numeric(SPECIES_PCT_4/100),
+                AREA.SC.5 = AREA.METRES * as.numeric(SPECIES_PCT_5/100)) %>%
+  sf::st_drop_geometry()
+
+cd.1 <- species.df %>%
   dplyr::group_by(SPECIES_CD_1) %>%
-  dplyr::summarize(AREA.BY.GRP = as.numeric(sum(AREA.METRES, na.rm = TRUE))/10000000) %>%
-  dplyr::mutate(SPECIES_CD_1 = as.factor(SPECIES_CD_1)) %>%
-  dplyr::arrange(desc(AREA.BY.GRP)) %>%
-  dplyr::filter(AREA.BY.GRP >= 1)
+  dplyr::summarize(AREA.BY.GRP.1 = as.numeric(sum(AREA.SC.1, na.rm = TRUE))) %>%
+  dplyr::rename(SPECIES.CD = SPECIES_CD_1) %>%
+  dplyr::filter(!is.na(SPECIES.CD))
 
-max.area = max(species.df$AREA.BY.GRP, na.rm = TRUE)
+cd.2 <- species.df %>%
+  dplyr::group_by(SPECIES_CD_2) %>%
+  dplyr::summarize(AREA.BY.GRP.2 = as.numeric(sum(AREA.SC.2, na.rm = TRUE))) %>%
+  dplyr::rename(SPECIES.CD = SPECIES_CD_2) %>%
+  dplyr::filter(!is.na(SPECIES.CD))
 
-ggplot(species.df, aes(x = reorder(SPECIES_CD_1, -AREA.BY.GRP), y = AREA.BY.GRP)) +
-  geom_bar(stat = "identity", fill = pal(8)[4]) +
+cd.3 <- species.df %>%
+  dplyr::group_by(SPECIES_CD_3) %>%
+  dplyr::summarize(AREA.BY.GRP.3 = as.numeric(sum(AREA.SC.3, na.rm = TRUE))) %>%
+  dplyr::rename(SPECIES.CD = SPECIES_CD_3) %>%
+  dplyr::filter(!is.na(SPECIES.CD))
+
+cd.4 <- species.df %>%
+  dplyr::group_by(SPECIES_CD_4) %>%
+  dplyr::summarize(AREA.BY.GRP.4 = as.numeric(sum(AREA.SC.4, na.rm = TRUE))) %>%
+  dplyr::rename(SPECIES.CD = SPECIES_CD_4) %>%
+  dplyr::filter(!is.na(SPECIES.CD))
+
+cd.5 <- species.df %>%
+  dplyr::group_by(SPECIES_CD_5) %>%
+  dplyr::summarize(AREA.BY.GRP.5 = as.numeric(sum(AREA.SC.5, na.rm = TRUE))) %>%
+  dplyr::rename(SPECIES.CD = SPECIES_CD_5) %>%
+  dplyr::filter(!is.na(SPECIES.CD))
+
+cd.all <- dplyr::full_join(x = cd.1, y = cd.2, by = ("SPECIES.CD"), keep = FALSE) %>%
+  dplyr::full_join(x = ., y = cd.3, by = ("SPECIES.CD"), keep = FALSE) %>%
+  dplyr::full_join(x = ., y = cd.4, by = ("SPECIES.CD"), keep = FALSE) %>%
+  dplyr::full_join(x = ., y = cd.5, by = ("SPECIES.CD"), keep = FALSE) %>%
+  dplyr::group_by(SPECIES.CD) %>%
+  dplyr::rowwise() %>%
+  dplyr::summarize(AREA.BY.GRP.TOTAL = sum(c(AREA.BY.GRP.1, AREA.BY.GRP.2, AREA.BY.GRP.3, AREA.BY.GRP.4, AREA.BY.GRP.5), na.rm = T)/100000) %>%
+  dplyr::mutate(SPECIES.CD = as.factor(SPECIES.CD)) %>%
+  dplyr::arrange(desc(AREA.BY.GRP.TOTAL))
+
+max.area = max(cd.all$AREA.BY.GRP.TOTAL, na.rm = TRUE)
+
+ggplot(cd.all, aes(x = reorder(SPECIES.CD, -AREA.BY.GRP.TOTAL), y = AREA.BY.GRP.TOTAL)) +
+  geom_bar(stat = "identity", fill = pal.nam(8)[8]) +
   labs(
     # title = "Age Distribution of Forest Stands by Area",
     x = "Species Code",
@@ -221,3 +291,16 @@ ggplot(species.df, aes(x = reorder(SPECIES_CD_1, -AREA.BY.GRP), y = AREA.BY.GRP)
     plot.title = element_text(size = 54, hjust = 0.5),
   )
 ```
+
+```{r dem-metrics, echo = FALSE}
+
+dem <- terra::rast("C:\\Users\\clarmour\\OneDrive - Government of BC\\PEM\\AOIs\\DateCreek_AOI\\0_raw_inputs\\dem\\lidar\\1m_DTM_mosaic.tif")
+
+```
+
+
+
+```{r covar-table, echo = FALSE}
+
+```
+
