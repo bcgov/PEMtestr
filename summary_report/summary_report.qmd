@@ -210,6 +210,10 @@ ggplot() +
   )
 
 
+water <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/water.gpkg")
+fire <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/fires.gpkg")
+roads <- st_read("C:/Users/clarmour/OneDrive - Government of BC/PEM/AOIs/DateCreek_AOI/0_raw_inputs/base_layers/roads_vetted.gpkg")
+
 ```
 
 
@@ -301,6 +305,8 @@ dem <- terra::rast("C:\\Users\\clarmour\\OneDrive - Government of BC\\PEM\\AOIs\
 
 
 ```{r covar-table, echo = FALSE}
+
+
 
 ```
 
